@@ -10,11 +10,13 @@ import _pickle as cPickle
 from utils import TextLoader
 from model import Model
 
+import pdb
+
 def main():
     parser = argparse.ArgumentParser()
 
-    #parser.add_argument('--data_dir', type=str, default='data/scotus', help='data directory containing input.txt')
-    parser.add_argument('--data_dir', type=str, default='data/opensub_new', help='data directory containing input.txt')
+    parser.add_argument('--data_dir', type=str, default='data/scotus', help='data directory containing input.txt')
+    #parser.add_argument('--data_dir', type=str, default='data/opensub_new', help='data directory containing input.txt')
     parser.add_argument('--save_dir', type=str, default='models/new_save',
                        help='directory for checkpointed models (load from here if one is already present)')
     parser.add_argument('--rnn_size', type=int, default=1000,
@@ -85,7 +87,7 @@ def train(args):
     config = tf.ConfigProto(log_device_placement=False)
     config.gpu_options.allow_growth = True
     with tf.Session(config=config) as sess:
-        tf.initialize_all_variables().run()
+        tf.global_variables_initializer().run()
         saver = tf.train.Saver(model.save_variables_list())
         if (load_model):
             print("Loading saved parameters")
@@ -100,7 +102,8 @@ def train(args):
                 - int(global_epoch_fraction)) * data_loader.total_batch_count)
         epoch_range = (int(global_epoch_fraction),
                 args.num_epochs + int(global_epoch_fraction))
-        writer = tf.train.SummaryWriter(args.save_dir, graph=tf.get_default_graph())
+        #writer = tf.train.SummaryWriter(args.save_dir, graph=tf.get_default_graph())
+        writer = tf.summary.FileWriter(args.save_dir, graph=tf.get_default_graph())
         outputs = [model.cost, model.final_state, model.train_op, model.summary_op]
         is_lstm = args.model == 'lstm'
         global_step = epoch_range[0] * data_loader.total_batch_count + initial_batch_step
@@ -124,6 +127,7 @@ def train(args):
                         print("Decayed learning rate to {}".format(current_learning_rate))
                     start = time.time()
                     # Pull the next batch inputs (x) and targets (y) from the data loader.
+                    pdb.set_trace()
                     x, y = data_loader.next_batch()
 
                     # feed is a dictionary of variable references and respective values for initialization.
