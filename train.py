@@ -4,20 +4,22 @@ import tensorflow as tf
 import argparse
 import time
 import os
-import cPickle
+#import cPickle
+import _pickle as cPickle
 
 from utils import TextLoader
 from model import Model
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', type=str, default='data/scotus',
-                       help='data directory containing input.txt')
+
+    #parser.add_argument('--data_dir', type=str, default='data/scotus', help='data directory containing input.txt')
+    parser.add_argument('--data_dir', type=str, default='data/opensub_new', help='data directory containing input.txt')
     parser.add_argument('--save_dir', type=str, default='models/new_save',
                        help='directory for checkpointed models (load from here if one is already present)')
-    parser.add_argument('--rnn_size', type=int, default=1500,
+    parser.add_argument('--rnn_size', type=int, default=1000,
                        help='size of RNN hidden state')
-    parser.add_argument('--num_layers', type=int, default=4,
+    parser.add_argument('--num_layers', type=int, default=2,
                        help='number of layers in the RNN')
     parser.add_argument('--model', type=str, default='gru',
                        help='rnn, gru, or lstm')
@@ -55,7 +57,8 @@ def train(args):
         # Trained model already exists
         ckpt = tf.train.get_checkpoint_state(args.save_dir)
         if ckpt and ckpt.model_checkpoint_path:
-            with open(os.path.join(args.save_dir, 'config.pkl')) as f:
+            # with open(os.path.join(args.save_dir, 'config.pkl')) as f:  #Original
+            with open(os.path.join(args.save_dir, 'config.pkl'), 'rb') as f:  #new
                 saved_args = cPickle.load(f)
                 args.rnn_size = saved_args.rnn_size
                 args.num_layers = saved_args.num_layers
@@ -66,11 +69,13 @@ def train(args):
                 load_model = True
 
     # Save all arguments to config.pkl in the save directory -- NOT the data directory.
-    with open(os.path.join(args.save_dir, 'config.pkl'), 'w') as f:
+    #with open(os.path.join(args.save_dir, 'config.pkl'), 'w') as f: # original
+    with open(os.path.join(args.save_dir, 'config.pkl'), 'wb') as f:  # New
         cPickle.dump(args, f)
     # Save a tuple of the characters list and the vocab dictionary to chars_vocab.pkl in
     # the save directory -- NOT the data directory.
-    with open(os.path.join(args.save_dir, 'chars_vocab.pkl'), 'w') as f:
+    #with open(os.path.join(args.save_dir, 'chars_vocab.pkl'), 'w') as f:
+    with open(os.path.join(args.save_dir, 'chars_vocab.pkl'), 'wb') as f:
         cPickle.dump((data_loader.chars, data_loader.vocab), f)
 
     # Create the model!
@@ -100,13 +105,15 @@ def train(args):
         is_lstm = args.model == 'lstm'
         global_step = epoch_range[0] * data_loader.total_batch_count + initial_batch_step
         try:
-            for e in xrange(*epoch_range):
+            #for e in xrange(*epoch_range):
+            for e in range(*epoch_range):
                 # e iterates through the training epochs.
                 # Reset the model state, so it does not carry over from the end of the previous epoch.
                 state = sess.run(model.initial_state)
                 batch_range = (initial_batch_step, data_loader.total_batch_count)
                 initial_batch_step = 0
-                for b in xrange(*batch_range):
+                #for b in xrange(*batch_range):
+                for b in range(*batch_range):
                     global_step += 1
                     if global_step % args.decay_steps == 0:
                         # Set the model.lr element of the model to track
@@ -141,8 +148,7 @@ def train(args):
                     elapsed = time.time() - start
                     global_seconds_elapsed += elapsed
                     writer.add_summary(summary, e * batch_range[1] + b + 1)
-                    print "{}/{} (epoch {}/{}), loss = {:.3f}, time/batch = {:.3f}s" \
-                        .format(b, batch_range[1], e, epoch_range[1], train_loss, elapsed)
+                    print ("{}/{} (epoch {}/{}), loss = {:.3f}, time/batch = {:.3f}s".format(b, batch_range[1], e, epoch_range[1], train_loss, elapsed))
                     # Every save_every batches, save the model to disk.
                     # By default, only the five most recent checkpoint files are kept.
                     if (e * batch_range[1] + b + 1) % args.save_every == 0 \
@@ -162,11 +168,11 @@ def train(args):
 def save_model(sess, saver, model, save_dir, global_step, steps_per_epoch, global_seconds_elapsed):
     global_epoch_fraction = float(global_step) / float(steps_per_epoch)
     checkpoint_path = os.path.join(save_dir, 'model.ckpt')
-    print "Saving model to {} (epoch fraction {:.3f})".format(checkpoint_path, global_epoch_fraction)
+    print ("Saving model to {} (epoch fraction {:.3f})".format(checkpoint_path, global_epoch_fraction))
     sess.run(tf.assign(model.global_epoch_fraction, global_epoch_fraction))
     sess.run(tf.assign(model.global_seconds_elapsed, global_seconds_elapsed))
     saver.save(sess, checkpoint_path, global_step = global_step)
-    print "Model saved."
+    print ("Model saved.")
 
 if __name__ == '__main__':
     main()

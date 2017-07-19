@@ -2,9 +2,12 @@ import codecs
 import os
 import io
 import collections
-import cPickle
+#import cPickle # python 2.7
+import _pickle as cPickle
 from bz2 import BZ2File
 import numpy as np
+import math
+import pdb
 
 class TextLoader():
     # Call this class to load text from a file.
@@ -30,13 +33,15 @@ class TextLoader():
             # If either the vocab file or the tensor file doesn't already exist, create them.
             print("Preprocessing the following files: {}".format(self.input_files))
             vocab_counter = collections.Counter()
-            for i in xrange(self.input_file_count):
+            #for i in xrange(self.input_file_count):
+            for i in range(self.input_file_count):
                 print("reading vocab from input file {}".format(self.input_files[i]))
                 self._augment_vocab(vocab_counter, self.input_files[i])
             print("saving vocab file")
             self._save_vocab(vocab_counter, vocab_file)
 
-            for i in xrange(self.input_file_count):
+            #for i in xrange(self.input_file_count):
+            for i in range(self.input_file_count):
                 print("preprocessing input file {}".format(self.input_files[i]))
                 self._preprocess(self.input_files[i], self.tensor_file_template.format(i))
                 self.tensor_sizes.append(self.tensor.size)
@@ -47,9 +52,9 @@ class TextLoader():
             print ("processed input text file: {} characters loaded".format(self.tensor.size))
         else:
             # If the vocab file and sizes file already exist, load them.
-            print "loading vocab file"
+            print ("loading vocab file")
             self._load_vocab(vocab_file)
-            print "loading sizes file"
+            print ("loading sizes file")
             with open(sizes_file, 'rb') as f:
                 self.tensor_sizes = cPickle.load(f)
         self.tensor_batch_counts = [n / (self.batch_size * self.seq_length) for n in self.tensor_sizes]
@@ -65,7 +70,8 @@ class TextLoader():
         if not os.path.exists(sizes_file):
             print("No sizes file found. Preprocessing...")
             return True
-        for i in xrange(input_file_count):
+        #for i in xrange(input_file_count):
+        for i in range(input_file_count):
             if not os.path.exists(tensor_file_template.format(i)):
                 print ("Couldn't find {}. Preprocessing...".format(tensor_file_template.format(i)))
                 return True
@@ -140,12 +146,17 @@ class TextLoader():
         raw_data = file_reference.read()
         file_reference.close()
         data = raw_data.encode(encoding=self.encoding)
+        #pdb.set_trace()
         # Convert the entirety of the data file from characters to indices via the vocab dictionary.
         # How? map(function, iterable) returns a list of the output of the function
         # executed on each member of the iterable. E.g.:
         # [14, 2, 9, 2, 0, 6, 7, 0, ...]
         # np.array converts the list into a numpy array.
-        self.tensor = np.array(map(self.vocab.get, data))
+
+        #self.tensor = np.array(map(self.vocab.get, data))  # map() is just map object --> sol : add 'list'
+        self.tensor = np.array(list(map(self.vocab.get, data)))
+
+
         # Compress and save the numpy tensor array to data.npz.
         np.savez_compressed(tensor_file, tensor_data=self.tensor)
 
@@ -156,6 +167,7 @@ class TextLoader():
         print("loading tensor data file {}".format(tensor_index))
         tensor_file = self.tensor_file_template.format(tensor_index)
         # Load the data tensor file to self.tensor.
+        #pdb.set_trace()
         with np.load(tensor_file) as loaded:
             self.tensor = loaded['tensor_data']
         self.tensor_index = tensor_index
@@ -168,7 +180,8 @@ class TextLoader():
         # Chop off the end of the data tensor so that the length of the data is a whole
         # multiple of the (batch_size x seq_length) product.
         # Do this with the slice operator on the numpy array.
-        self.tensor = self.tensor[:self.num_batches * self.batch_size * self.seq_length]
+        #pdb.set_trace()
+        self.tensor = self.tensor[:int(self.num_batches * self.batch_size * self.seq_length)]
         # Construct two numpy arrays to represent input characters (xdata)
         # and target characters (ydata).
         # In training, we will feed in input characters one at a time, and optimize along
@@ -212,8 +225,17 @@ class TextLoader():
         # These will be fed to the model one at a time sequentially.
         # State is preserved between sequential batches.
         #
-        self.x_batches = np.split(xdata.reshape(self.batch_size, -1), self.num_batches, 1)
-        self.y_batches = np.split(ydata.reshape(self.batch_size, -1), self.num_batches, 1)
+        #pdb.set_trace()
+        self.x_batches = np.split(xdata.reshape(self.batch_size, -1), self.num_batches, 1) # -1 not work
+        self.y_batches = np.split(ydata.reshape(self.batch_size, -1), self.num_batches, 1) # -1 not work
+
+        # Hmm.... len(xdata)/self.batch_size is not an integer... How to solve it ?
+
+        #xsize = self.batch_size*math.floor(len(xdata)/self.batch_size)
+        #ysize = self.batch_size*math.floor(len(xdata)/self.batch_size)
+        #self.num_batches = xsize / (self.batch_size * self.seq_length) # FYI : self.num_batches = self.tensor.size / (self.batch_size * self.seq_length)
+        #self.x_batches = np.split(xdata[:xsize].reshape(self.batch_size, math.floor(len(xdata)/self.batch_size)), self.num_batches, 1) # -1 not work
+        #self.y_batches = np.split(ydata[:ysize].reshape(self.batch_size, math.floor(len(ydata)/self.batch_size)), self.num_batches, 1) # -1 not work
 
     def next_batch(self):
         if self.tensor_index < 0:
